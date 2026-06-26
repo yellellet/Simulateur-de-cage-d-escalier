@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Simulateur cage escalier sur mesure</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                background: #1a1a2e;
+                color: #e0e0e0;
+                font-family: "Segoe UI", system-ui, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                padding: 16px;
+            }
+
+            h1 {
+                font-size: 1.1rem;
+                font-weight: 500;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #a0a8c0;
+                margin-bottom: 12px;
+                text-align: center;
+            }
+
+            #status {
+                font-size: 1rem;
+                font-weight: 700;
+                padding: 6px 20px;
+                border-radius: 20px;
+                margin-bottom: 14px;
+                transition: all 0.2s;
+                letter-spacing: 0.05em;
+            }
+            #status.ok {
+                background: #0d3320;
+                color: #4ade80;
+                border: 1px solid #22c55e;
+            }
+            #status.nok {
+                background: #3a0d0d;
+                color: #f87171;
+                border: 1px solid #ef4444;
+            }
+
+            canvas {
+                border-radius: 8px;
+                cursor: grab;
+                touch-action: none;
+                display: block;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            canvas:active {
+                cursor: grabbing;
+            }
+
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 14px;
+                justify-content: center;
+                align-items: center;
+                max-width: 600px;
+            }
+
+            .ctrl-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                background: #252540;
+                border-radius: 8px;
+                padding: 6px 12px;
+            }
+
+            .ctrl-group.colis {
+                background: #223e36;
+            } /* Teinte verte pour différencier le colis */
+
+            .ctrl-group label {
+                font-size: 0.78rem;
+                color: #a0a8c0;
+                white-space: nowrap;
+                font-weight: 600;
+            }
+
+            button {
+                background: #2e2e50;
+                border: 1px solid #44447a;
+                color: #c0c0e8;
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 0.82rem;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+            button:hover {
+                background: #3a3a6a;
+            }
+            button:active {
+                background: #4a4a8a;
+            }
+
+            input[type="range"] {
+                width: 90px;
+                accent-color: #6c63ff;
+            }
+            .ctrl-group.colis input[type="range"] {
+                accent-color: #4ade80;
+            }
+
+            .val-display {
+                font-size: 0.82rem;
+                color: #c0c0e8;
+                min-width: 45px;
+                text-align: right;
+            }
+
+            .hint {
+                font-size: 0.72rem;
+                color: #555577;
+                margin-top: 8px;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Cage d'escalier & Colis Sur Mesure</h1>
+        <div id="status" class="ok">✓ Pas de collision</div>
+
+        <canvas id="c"></canvas>
+
+        <div class="controls">
+            <div class="ctrl-group">
+                <label>Couloirs (V)</label>
+                <input
+                    type="range"
+                    id="c-vert"
+                    min="50"
+                    max="150"
+                    value="80"
+                    step="1"
+                />
+                <span id="c-vert-val" class="val-display">80 cm</span>
+            </div>
+            <div class="ctrl-group">
+                <label>Palier (H)</label>
+                <input
+                    type="range"
+                    id="c-horiz"
+                    min="50"
+                    max="150"
+                    value="80"
+                    step="1"
+                />
+                <span id="c-horiz-val" class="val-display">80 cm</span>
+            </div>
+
+            <div class="ctrl-group colis">
+                <label>Colis Long.</label>
+                <input
+                    type="range"
+                    id="box-w"
+                    min="30"
+                    max="200"
+                    value="97"
+                    step="1"
+                />
+                <span id="box-w-val" class="val-display">97 cm</span>
+            </div>
+            <div class="ctrl-group colis">
+                <label>Colis Larg.</label>
+                <input
+                    type="range"
+                    id="box-h"
+                    min="20"
+                    max="120"
+                    value="57"
+                    step="1"
+                />
+                <span id="box-h-val" class="val-display">57 cm</span>
+            </div>
+
+            <div class="ctrl-group">
+                <label>Rotation</label>
+                <input
+                    type="range"
+                    id="rot"
+                    min="0"
+                    max="360"
+                    value="0"
+                    step="1"
+                />
+                <span id="angle-val" class="val-display">0°</span>
+            </div>
+            <div class="ctrl-group">
+                <button id="ccw">↺ −5°</button>
+                <button id="cw">↻ +5°</button>
+                <button id="reset">Réinitialiser</button>
+            </div>
+        </div>
+        <p class="hint">
+            Glissez le colis avec la souris/doigt · Molette ou sliders pour
+            ajuster le tout
+        </p>
+
+        <script>
+            const canvas = document.getElementById("c");
+            const ctx = canvas.getContext("2d");
+            const statusEl = document.getElementById("status");
+            const rotSlider = document.getElementById("rot");
+            const angleVal = document.getElementById("angle-val");
+
+            // Sliders de dimensions
+            const sliderCVert = document.getElementById("c-vert");
+            const sliderCHoriz = document.getElementById("c-horiz");
+            const sliderBoxW = document.getElementById("box-w");
+            const sliderBoxH = document.getElementById("box-h");
+
+            // ── Variables Globales Modifiables ────────────────────────────────────
+            let C_VERT = parseInt(sliderCVert.value); // Largeur barres verticales
+            let C_HORIZ = parseInt(sliderCHoriz.value); // Profondeur palier horizontal bas
+            let BOX_W = parseInt(sliderBoxW.value); // Longueur colis
+            let BOX_H = parseInt(sliderBoxH.value); // Largeur colis
+            const WALL_T = 5; // Épaisseur cloison centrale fixe (5 cm)
+
+            // ── Configuration de la scène dynamique ───────────────────────────────
+            let SCENE_W = 2 * C_VERT + WALL_T;
+            let SCENE_H = 3 * C_VERT + C_HORIZ; // Hauteur = 3x la largeur des couloirs + le palier du bas
+
+            // ── État du colis ──────────────────────────────────────────────────────
+            let boxX = C_VERT / 2;
+            let boxY = C_VERT * 0.8;
+            let boxAngle = 0; // radians
+
+            // ── Mise à l'échelle automatique ──────────────────────────────────────
+            function computeScale() {
+                const maxW = Math.min(window.innerWidth - 32, 420);
+                const maxH = window.innerHeight * 0.55;
+                return Math.min(maxW / SCENE_W, maxH / SCENE_H);
+            }
+
+            let SCALE = computeScale();
+
+            function resize() {
+                SCALE = computeScale();
+                canvas.width = Math.round(SCENE_W * SCALE);
+                canvas.height = Math.round(SCENE_H * SCALE);
+                draw();
+            }
+            window.addEventListener("resize", resize);
+
+            function cx(x) {
+                return x * SCALE;
+            }
+            function cy(y) {
+                return y * SCALE;
+            }
+
+            // ── Mise à jour via les Sliders de dimensions ─────────────────────────
+            function updateDimensions() {
+                C_VERT = parseInt(sliderCVert.value);
+                C_HORIZ = parseInt(sliderCHoriz.value);
+                BOX_W = parseInt(sliderBoxW.value);
+                BOX_H = parseInt(sliderBoxH.value);
+
+                document.getElementById("c-vert-val").textContent =
+                    C_VERT + " cm";
+                document.getElementById("c-horiz-val").textContent =
+                    C_HORIZ + " cm";
+                document.getElementById("box-w-val").textContent =
+                    BOX_W + " cm";
+                document.getElementById("box-h-val").textContent =
+                    BOX_H + " cm";
+
+                SCENE_W = 2 * C_VERT + WALL_T;
+                SCENE_H = 3 * C_VERT + C_HORIZ;
+
+                resize();
+            }
+
+            [sliderCVert, sliderCHoriz, sliderBoxW, sliderBoxH].forEach(
+                (slider) => {
+                    slider.addEventListener("input", updateDimensions);
+                },
+            );
+
+            // ── Dessin Principal ───────────────────────────────────────────────────
+            function draw() {
+                const W = canvas.width,
+                    H = canvas.height;
+                ctx.clearRect(0, 0, W, H);
+
+                // Fond (zones interdites)
+                ctx.fillStyle = "#2a2a3a";
+                ctx.fillRect(0, 0, W, H);
+
+                drawCorridor();
+                drawBox();
+            }
+
+            function drawCorridor() {
+                const W = canvas.width,
+                    H = canvas.height;
+
+                // 1. Zone praticable
+                ctx.save();
+                corridorPath();
+                ctx.fillStyle = "#1e1e3a";
+                ctx.fill();
+
+                // Grille
+                ctx.clip();
+                ctx.strokeStyle = "#28284a";
+                ctx.lineWidth = 0.5;
+                const step = cx(20);
+                for (let x = 0; x < W; x += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, H);
+                    ctx.stroke();
+                }
+                for (let y = 0; y < H; y += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(W, y);
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // 2. Bordures des murs
+                ctx.save();
+                corridorPath();
+                ctx.strokeStyle = "#6c63ff";
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.restore();
+
+                // 3. Flèches de cotes
+                drawDimensions();
+            }
+
+            function corridorPath() {
+                const topY = 0;
+                ctx.beginPath();
+                ctx.moveTo(cx(0), topY);
+                ctx.lineTo(cx(0), cy(SCENE_H));
+                ctx.lineTo(cx(SCENE_W), cy(SCENE_H));
+                ctx.lineTo(cx(SCENE_W), topY);
+
+                // Retour intérieur pour détourer la cloison centrale
+                ctx.lineTo(cx(C_VERT + WALL_T), topY);
+                ctx.lineTo(cx(C_VERT + WALL_T), cy(3 * C_VERT));
+                ctx.lineTo(cx(C_VERT), cy(3 * C_VERT));
+                ctx.lineTo(cx(C_VERT), topY);
+                ctx.closePath();
+            }
+
+            function drawDimensions() {
+                ctx.font = `${Math.max(9, cx(8))}px 'Segoe UI', sans-serif`;
+                ctx.fillStyle = "#5555aa";
+                ctx.textAlign = "center";
+
+                const midY = cy(1.2 * C_VERT);
+                // Largeurs des couloirs verticaux (gauche et droit)
+                drawDimArrow(cx(0), midY, cx(C_VERT), midY, C_VERT + " cm");
+                drawDimArrow(
+                    cx(C_VERT + WALL_T),
+                    midY,
+                    cx(SCENE_W),
+                    midY,
+                    C_VERT + " cm",
+                );
+
+                // Profondeur du palier bas (Parfaitement centrée au milieu du U)
+                const midX = cx(SCENE_W / 2);
+                drawDimArrowVertical(
+                    midX,
+                    cy(3 * C_VERT),
+                    midX,
+                    cy(SCENE_H),
+                    C_HORIZ + " cm",
+                );
+            }
+
+            function drawDimArrow(x1, y1, x2, y2, label) {
+                ctx.save();
+                ctx.strokeStyle = "#44448a";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x1 + 4, y1);
+                ctx.lineTo(x2 - 4, y2);
+                ctx.stroke();
+                ctx.fillStyle = "#5555aa";
+                ctx.fillText(label, (x1 + x2) / 2, y1 - 5);
+                ctx.restore();
+            }
+
+            function drawDimArrowVertical(x1, y1, x2, y2, label) {
+                ctx.save();
+                ctx.strokeStyle = "#44448a";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1 + 4);
+                ctx.lineTo(x2, y2 - 4);
+                ctx.stroke();
+                ctx.fillStyle = "#5555aa";
+                ctx.textAlign = "left";
+                ctx.textBaseline = "middle";
+                ctx.fillText(label, x1 + 6, (y1 + y2) / 2);
+                ctx.restore();
+            }
+
+            function getBoxCorners() {
+                const hw = BOX_W / 2,
+                    hh = BOX_H / 2;
+                const cos = Math.cos(boxAngle),
+                    sin = Math.sin(boxAngle);
+                return [
+                    [-hw, -hh],
+                    [hw, -hh],
+                    [hw, hh],
+                    [-hw, hh],
+                ].map(([lx, ly]) => ({
+                    x: boxX + lx * cos - ly * sin,
+                    y: boxY + lx * sin + ly * cos,
+                }));
+            }
+
+            function drawBox() {
+                const corners = getBoxCorners();
+                const collision = checkCollision(corners);
+
+                ctx.save();
+                ctx.translate(cx(boxX), cy(boxY));
+                ctx.rotate(boxAngle);
+
+                ctx.fillStyle = collision
+                    ? "rgba(239,68,68,0.25)"
+                    : "rgba(74,222,128,0.22)";
+                ctx.beginPath();
+                ctx.rect(-cx(BOX_W / 2), -cy(BOX_H / 2), cx(BOX_W), cy(BOX_H));
+                ctx.fill();
+
+                ctx.strokeStyle = collision ? "#ef4444" : "#4ade80";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.strokeStyle = collision
+                    ? "rgba(239,68,68,0.4)"
+                    : "rgba(74,222,128,0.4)";
+                ctx.beginPath();
+                ctx.moveTo(-cx(BOX_W / 2), 0);
+                ctx.lineTo(cx(BOX_W / 2), 0);
+                ctx.moveTo(0, -cy(BOX_H / 2));
+                ctx.lineTo(0, cy(BOX_H / 2));
+                ctx.stroke();
+
+                ctx.fillStyle = collision ? "#f87171" : "#a7f3d0";
+                ctx.font = `bold ${Math.max(8, cx(7))}px 'Segoe UI', sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(`${BOX_W}×${BOX_H} cm`, 0, 0);
+                ctx.restore();
+
+                statusEl.className = collision ? "nok" : "ok";
+                statusEl.textContent = collision
+                    ? "✗ Collision avec le mur !"
+                    : "✓ Pas de collision";
+            }
+
+            // ── Détection de Collision Multi-points Robustes ──────────────────────
+            function pointInCorridor(px, py) {
+                if (px < 0 || px > SCENE_W || py < 0 || py > SCENE_H)
+                    return false;
+                if (
+                    px > C_VERT &&
+                    px < C_VERT + WALL_T &&
+                    py >= 0 &&
+                    py <= 3 * C_VERT
+                )
+                    return false;
+                return true;
+            }
+
+            function checkCollision(corners) {
+                for (const p of corners) {
+                    if (!pointInCorridor(p.x, p.y)) return true;
+                }
+                for (let i = 0; i < corners.length; i++) {
+                    const a = corners[i],
+                        b = corners[(i + 1) % corners.length];
+                    for (let t = 0.02; t < 1; t += 0.02) {
+                        const mx = a.x + (b.x - a.x) * t;
+                        const my = a.y + (b.y - a.y) * t;
+                        if (!pointInCorridor(mx, my)) return true;
+                    }
+                }
+                return false;
+            }
+
+            // ── Drag & Drop Tactile / Souris ──────────────────────────────────────
+            let dragging = false,
+                dragOffX = 0,
+                dragOffY = 0;
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches ? e.touches[0] : e;
+                return {
+                    x: (touch.clientX - rect.left) / SCALE,
+                    y: (touch.clientY - rect.top) / SCALE,
+                };
+            }
+
+            canvas.addEventListener("mousedown", startDrag);
+            canvas.addEventListener("touchstart", startDrag, { passive: true });
+
+            function startDrag(e) {
+                const p = getPos(e);
+                dragOffX = p.x - boxX;
+                dragOffY = p.y - boxY;
+                dragging = true;
+            }
+
+            window.addEventListener("mousemove", moveDrag);
+            window.addEventListener("touchmove", moveDrag, { passive: true });
+
+            function moveDrag(e) {
+                if (!dragging) return;
+                const p = getPos(e);
+                boxX = p.x - dragOffX;
+                boxY = p.y - dragOffY;
+                draw();
+            }
+
+            window.addEventListener("mouseup", () => (dragging = false));
+            window.addEventListener("touchend", () => (dragging = false));
+
+            // ── Moteur de Rotation ────────────────────────────────────────────────
+            rotSlider.addEventListener("input", () => {
+                boxAngle = (parseInt(rotSlider.value) * Math.PI) / 180;
+                angleVal.textContent = rotSlider.value + "°";
+                draw();
+            });
+
+            document.getElementById("ccw").addEventListener("click", () => {
+                let deg = parseInt(rotSlider.value) - 5;
+                if (deg < 0) deg += 360;
+                rotSlider.value = deg;
+                rotSlider.dispatchEvent(new Event("input"));
+            });
+
+            document.getElementById("cw").addEventListener("click", () => {
+                let deg = (parseInt(rotSlider.value) + 5) % 360;
+                rotSlider.value = deg;
+                rotSlider.dispatchEvent(new Event("input"));
+            });
+
+            document.getElementById("reset").addEventListener("click", () => {
+                boxX = C_VERT / 2;
+                boxY = C_VERT * 0.8;
+                boxAngle = 0;
+                rotSlider.value = 0;
+                angleVal.textContent = "0°";
+                draw();
+            });
+
+            canvas.addEventListener(
+                "wheel",
+                (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? 3 : -3;
+                    let deg = (parseInt(rotSlider.value) + delta + 360) % 360;
+                    rotSlider.value = deg;
+                    rotSlider.dispatchEvent(new Event("input"));
+                },
+                { passive: false },
+            );
+
+            // ── Initialisation ────────────────────────────────────────────────────
+            updateDimensions();
+        </script>
+    </body>
+</html>
